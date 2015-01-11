@@ -4,8 +4,6 @@ import (
 	"g.e11it.ru/go/lo/builder"
 	"g.e11it.ru/go/lo/loForms"
 	"github.com/go-martini/martini"
-	//"github.com/martini-contrib/binding"
-	"github.com/e11it/binding"
 	"github.com/martini-contrib/render"
 	"html/template"
 	"log"
@@ -46,22 +44,6 @@ func main() {
 			log.Println("Error:", err.Error())
 		}
 		log.Println("Dump form:", fd)
-	})
-	// Martini builder
-	m.Get("/mb", func(r render.Render) {
-		fd := &loForms.MyForm{
-			Age:   18,
-			Token: "345625145123451234123412342345",
-		}
-		html, _ := builder.FormCreate(fd)
-		r.HTML(200, "form", map[string]interface{}{
-			"FormBody": html,
-		})
-	})
-	m.Post("/mb", binding.Bind(loForms.MyForm{}), func(myform loForms.MyForm, r *http.Request) string {
-		log.Println(r)
-		log.Println(myform)
-		return "Hello"
 	})
 
 	m.Run()
