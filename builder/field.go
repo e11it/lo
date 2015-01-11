@@ -25,15 +25,20 @@ type formField struct {
 }
 
 // Custom builders
-// Function to build element. <element>
+// Function to build element attr. <element attr>
+// @Return array of attr
 type TypeFElBuilder func() []string
 
-// Function to build body of element. <element>BODY</element>
+// Function to build attr of html tag. <element>BODY</element>
+// @Return body of tag
 type TypeFBodyBuilder func() string
 
 // Preprocessor for assigned form value
+// @Input: post value
+// @Return: new value and err
 type TypeFormValPreprocessor func(string) (string, error)
 
+//
 func GetField(field reflect.StructField, val reflect.Value) (*formField, error) {
 	// Field with default values
 	rField := &formField{
@@ -65,6 +70,8 @@ func GetField(field reflect.StructField, val reflect.Value) (*formField, error) 
 
 	return rField, nil
 }
+
+// ! Конфигурация полей
 
 // Проверяет type. Определяет обработчики
 func (self *formField) ValidateTypeSetCustoms(val string) {
@@ -214,91 +221,6 @@ func (self *formField) defaultBuilder() []string {
 	return options
 }
 
-// RADIO
-func (self *formField) radioBuilder() []string {
-	var (
-		options []string
-	)
-	/*
-	 * type:”radio” radio:”VALUE[;checked]”
-	 * Где:
-	 * VALUE– Значение radiobutton
-	 * ;checked – Флаг выбора по умолчанию
-	 */
-	if strings.HasSuffix(self.Ext, ";checked") {
-		value := strings.TrimSuffix(self.Ext, ";checked")
-		options = append(options, fmt.Sprintf("value=\"%s\"", value))
-		options = append(options, fmt.Sprintf("checked"))
-	} else {
-		options = append(options, fmt.Sprintf("value=\"%s\"", self.Ext))
-	}
-
-	return options
-}
-
-func (self *formField) getValueRadioFrom(formVal string) (string, error) {
-	value := strings.TrimSuffix(self.Ext, ";checked")
-	if len(value) < 0 {
-		return "", errors.New("No value for radio element")
-	}
-	if formVal == value {
-		return "true", nil
-	}
-	return "false", nil
-}
-
-func (self *formField) getValueSelectFrom(formVal string) (string, error) {
-	options := strings.Split(self.Ext, ",")
-	for _, str := range options {
-		var (
-			name, endStr, value string
-		)
-		eqIndex := strings.Index(str, "=")
-		if eqIndex < 0 {
-			return "", errors.New(fmt.Sprintln("Incorrect tag value. Pattern(NAME=VALUE[;selected]) not matched. Str:", str, "Full str: ", self.Ext))
-		}
-		name = str[0:eqIndex]
-		endStr = str[eqIndex+1 : len(str)]
-		value = strings.TrimSuffix(endStr, ";selected")
-
-		if value == formVal {
-			return name, nil
-		}
-	}
-	return "", errors.New("Form value: " + formVal + "Doesn't match any defined values: " + self.Ext)
-}
-
-// Return body of select element(<options> html)
-func (self *formField) selectBodyBuilder() string {
-	var html string = "\n"
-	/*
-	 * type:"select" select:"[NAME=VALUE[;selected]],"
-	 */
-	options := strings.Split(self.Ext, ",")
-	for _, str := range options {
-		var (
-			name, endStr, value, selected string
-		)
-		eqIndex := strings.Index(str, "=")
-		if eqIndex < 0 {
-			// TODO: Error processor
-			errors.New(fmt.Sprintln("Incorrect tag value. Pattern(NAME=VALUE[;selected]) not matched. Str:", str, "Full str: ", self.Ext))
-		}
-		name = str[0:eqIndex]
-		endStr = str[eqIndex+1 : len(str)]
-		if strings.HasSuffix(endStr, ";selected") {
-			value = strings.TrimSuffix(endStr, ";selected")
-			selected = " selected"
-		} else {
-			value = endStr
-		}
-
-		html = fmt.Sprintf("%s\t<option value=\"%s\"%s>%s</option>\n", html, value, selected, name)
-
-	}
-	return html
-}
-
 // This sets the value in a struct of an indeterminate type to the
 // matching value from the request (via Form middleware) in the
 // same type, so that not all deserialized values have to be strings.
@@ -367,4 +289,93 @@ func setWithProperType(valueKind reflect.Kind, val string, structField reflect.V
 	}
 
 	return nil
+}
+
+// ----------------------------------------------------------------- //
+// Custom fields
+// ----- RADIO
+func (self *formField) radioBuilder() []string {
+	var (
+		options []string
+	)
+	/*
+	 * type:”radio” radio:”VALUE[;checked]”
+	 * Где:
+	 * VALUE– Значение radiobutton
+	 * ;checked – Флаг выбора по умолчанию
+	 */
+	if strings.HasSuffix(self.Ext, ";checked") {
+		value := strings.TrimSuffix(self.Ext, ";checked")
+		options = append(options, fmt.Sprintf("value=\"%s\"", value))
+		options = append(options, fmt.Sprintf("checked"))
+	} else {
+		options = append(options, fmt.Sprintf("value=\"%s\"", self.Ext))
+	}
+
+	return options
+}
+
+func (self *formField) getValueRadioFrom(formVal string) (string, error) {
+	value := strings.TrimSuffix(self.Ext, ";checked")
+	if len(value) < 0 {
+		return "", errors.New("No value for radio element")
+	}
+	if formVal == value {
+		return "true", nil
+	}
+	return "false", nil
+}
+
+//
+// ----- SELECT
+func (self *formField) getValueSelectFrom(formVal string) (string, error) {
+	options := strings.Split(self.Ext, ",")
+	for _, str := range options {
+		var (
+			name, endStr, value string
+		)
+		eqIndex := strings.Index(str, "=")
+		if eqIndex < 0 {
+			return "", errors.New(fmt.Sprintln("Incorrect tag value. Pattern(NAME=VALUE[;selected]) not matched. Str:", str, "Full str: ", self.Ext))
+		}
+		name = str[0:eqIndex]
+		endStr = str[eqIndex+1 : len(str)]
+		value = strings.TrimSuffix(endStr, ";selected")
+
+		if value == formVal {
+			return name, nil
+		}
+	}
+	return "", errors.New("Form value: " + formVal + "Doesn't match any defined values: " + self.Ext)
+}
+
+// Return body of select tag
+func (self *formField) selectBodyBuilder() string {
+	var html string = "\n"
+	/*
+	 * type:"select" select:"[NAME=VALUE[;selected]],"
+	 */
+	options := strings.Split(self.Ext, ",")
+	for _, str := range options {
+		var (
+			name, endStr, value, selected string
+		)
+		eqIndex := strings.Index(str, "=")
+		if eqIndex < 0 {
+			// TODO: Error processor
+			errors.New(fmt.Sprintln("Incorrect tag value. Pattern(NAME=VALUE[;selected]) not matched. Str:", str, "Full str: ", self.Ext))
+		}
+		name = str[0:eqIndex]
+		endStr = str[eqIndex+1 : len(str)]
+		if strings.HasSuffix(endStr, ";selected") {
+			value = strings.TrimSuffix(endStr, ";selected")
+			selected = " selected"
+		} else {
+			value = endStr
+		}
+
+		html = fmt.Sprintf("%s\t<option value=\"%s\"%s>%s</option>\n", html, value, selected, name)
+
+	}
+	return html
 }
