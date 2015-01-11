@@ -10,10 +10,6 @@ import (
 	"net/http"
 )
 
-func init() {
-	binding.DefaultFormTag = "field"
-}
-
 func main() {
 	m := martini.Classic()
 	m.Use(render.Renderer(render.Options{
