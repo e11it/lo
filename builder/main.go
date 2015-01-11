@@ -2,6 +2,7 @@ package builder
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"reflect"
 	"strings"
@@ -18,6 +19,11 @@ func FormCreate(formStruct interface{}) (string, error) {
 		fields []string
 		err    error
 	)
+
+	if !isPointer(formStruct) {
+		return "", errors.New("FormStruct should be a pointer to struct")
+	}
+
 	typ := reflect.TypeOf(formStruct)
 	val := reflect.ValueOf(formStruct)
 
@@ -34,15 +40,26 @@ func FormCreate(formStruct interface{}) (string, error) {
 			continue
 		}
 
-		field := GetField(rawField, val.Field(i))
-		fields = append(fields, field.GetHTML())
+		field, err := GetField(rawField, val.Field(i))
+		if err != nil {
+			return "", err
+		}
+		fieldHtml, ferr := field.GetHTML()
+		if ferr != nil {
+			return "", err
+		}
+		fields = append(fields, fieldHtml)
 	}
 	html := strings.Join(fields, "\n")
 	return html, err
 }
 
 func FormRead(formStruct interface{}, request *http.Request) error {
-	//ensureNotPointer(formStruct)
+
+	if !isPointer(formStruct) {
+		return errors.New("FormStruct should be a pointer to struct")
+	}
+
 	contentType := request.Header.Get("Content-Type")
 
 	if request.Method == "POST" || contentType != "" {
@@ -59,4 +76,20 @@ func FormRead(formStruct interface{}, request *http.Request) error {
 		}
 	}
 	return nil
+}
+
+func DumpForm(formStruct interface{}) {
+	typ := reflect.TypeOf(formStruct)
+	val := reflect.ValueOf(formStruct)
+
+	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+		val = val.Elem()
+	}
+
+	for i := 0; i < typ.NumField(); i++ {
+		rawField := typ.Field(i)
+		valField := val.Field(i)
+		log.Println(">", rawField.Name, "[", rawField.Tag.Get("field"), "]  :", valField.Interface())
+	}
 }

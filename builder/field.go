@@ -31,10 +31,10 @@ type TypeFElBuilder func() []string
 // Function to build body of element. <element>BODY</element>
 type TypeFBodyBuilder func() string
 
-// Preprocessor for returned form value
+// Preprocessor for assigned form value
 type TypeFormValPreprocessor func(string) (string, error)
 
-func GetField(field reflect.StructField, val reflect.Value) *formField {
+func GetField(field reflect.StructField, val reflect.Value) (*formField, error) {
 	// Field with default values
 	rField := &formField{
 		Required:     false,
@@ -57,18 +57,13 @@ func GetField(field reflect.StructField, val reflect.Value) *formField {
 	rField.ValidateTypeSetCustoms(field.Tag.Get("type"))
 	// For select and radio get tag with type name
 	if yes := rField.HasExt(); yes {
+		if field.Tag.Get(rField.Type) == "" {
+			return nil, errors.New("No tag for " + rField.Type)
+		}
 		rField.Ext = field.Tag.Get(rField.Type)
 	}
 
-	return rField
-}
-
-// Возвращает true, если предполагается наличие дополнительного tag в стракутре
-func (self *formField) HasExt() bool {
-	if self.Type == "radio" || self.Type == "select" {
-		return true
-	}
-	return false
+	return rField, nil
 }
 
 // Проверяет type. Определяет обработчики
@@ -99,33 +94,16 @@ func (self *formField) ValidateTypeSetCustoms(val string) {
 	}
 }
 
-// Возвращает label для текущего элемента
-func (self *formField) getHtmlLabel() string {
-	if len(self.Name) > 0 {
-		return fmt.Sprintf("<label for=\"%s\">%s</label>\n", self.Field, self.Name)
+// Возвращает true, если предполагается наличие дополнительного tag в стракутре
+func (self *formField) HasExt() bool {
+	if self.Type == "radio" || self.Type == "select" {
+		return true
 	}
-	return ""
+	return false
 }
 
-/*
- * Возвращает имя открывающего и, если необходимо, закрывающего элемент
- * Т.к. не все элементы имеют отдельный закрывающий элемент
- */
-func (self *formField) getOpenCloseElement() (string, string) {
-	switch self.Type {
-	case "text", "password", "hidden", "button", "checkbox", "radio":
-		return fmt.Sprintf("input type=\"%s\"", self.Type), ""
-	case "select", "textarea":
-		return self.Type, fmt.Sprintf("</%s>", self.Type)
-	}
-	return "", ""
-}
-
-/*
- * Если нет  customBuilder - то value берется либо из стркутуры, либо default
- * Если есть customBuilder - то value обрабоатывает сам builder
- */
-func (self *formField) GetHTML() string {
+// Генерирует html код для поля
+func (self *formField) GetHTML() (string, error) {
 	var (
 		html    string
 		body    string
@@ -134,7 +112,9 @@ func (self *formField) GetHTML() string {
 	label := self.getHtmlLabel()
 	//
 	openEl, closeEl := self.getOpenCloseElement()
-
+	if openEl == "" {
+		return "", errors.New("Can't get open html element for" + self.ReflectField.Name)
+	}
 	options = append(options, fmt.Sprintf("name=\"%s\"", self.Field))
 
 	if self.ElBuilder != nil {
@@ -147,7 +127,44 @@ func (self *formField) GetHTML() string {
 		body = self.BodyBuilder()
 	}
 	html = fmt.Sprintf("%s<%s %s>%s%s<br>", label, openEl, strOptions, body, closeEl)
-	return html
+	return html, nil
+}
+
+// Присваивает значение поля.
+// @val string строка полученная из формы
+func (self *formField) SetValueFromString(val string) error {
+	if val == "" && self.Required {
+		return errors.New("No value for required field : " + self.ReflectField.Name)
+	}
+	// Preprocess input value
+	if self.FormValPreprocessor != nil {
+		if valnew, err := self.FormValPreprocessor(val); err != nil {
+			return err
+		} else {
+			val = valnew
+		}
+	}
+	// Assign input value
+	return setWithProperType(self.ReflectValue.Kind(), val, self.ReflectValue)
+}
+
+// Возвращает label для текущего элемента
+func (self *formField) getHtmlLabel() string {
+	if len(self.Name) > 0 {
+		return fmt.Sprintf("<label for=\"%s\">%s</label>\n", self.Field, self.Name)
+	}
+	return ""
+}
+
+// Возвращает имя открывающего и, если необходимо, закрывающего элемента
+func (self *formField) getOpenCloseElement() (string, string) {
+	switch self.Type {
+	case "text", "password", "hidden", "button", "checkbox", "radio":
+		return fmt.Sprintf("input type=\"%s\"", self.Type), ""
+	case "select", "textarea":
+		return self.Type, fmt.Sprintf("</%s>", self.Type)
+	}
+	return "", ""
 }
 
 // Pretify Value based on type.
@@ -251,20 +268,6 @@ func (self *formField) getValueSelectFrom(formVal string) (string, error) {
 	return "", errors.New("Form value: " + formVal + "Doesn't match any defined values: " + self.Ext)
 }
 
-func (self *formField) SetValueFromString(val string) error {
-	// Preprocess input value
-	if self.FormValPreprocessor != nil {
-		if valnew, err := self.FormValPreprocessor(val); err != nil {
-			return err
-		} else {
-			log.Println("set new value:", valnew)
-			val = valnew
-		}
-	}
-	// Assign input value
-	return setWithProperType(self.ReflectValue.Kind(), val, self.ReflectValue)
-}
-
 // Return body of select element(<options> html)
 func (self *formField) selectBodyBuilder() string {
 	var html string = "\n"
@@ -306,12 +309,19 @@ func setWithProperType(valueKind reflect.Kind, val string, structField reflect.V
 		if val == "" {
 			val = "0"
 		}
+		// !Custom setup for TimeDuration.
+		/* // What will be returned from client?
+		 * if structField.Type() == reflect.ValueOf((time.Duration)(0)).Type() {
+		 *
+		 * }
+		 */
 		intVal, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
 			return errors.New("TypeError: Value could not be parsed as integer")
 		} else {
 			structField.SetInt(intVal)
 		}
+
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		if val == "" {
 			val = "0"

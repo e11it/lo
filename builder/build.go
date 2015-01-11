@@ -2,7 +2,7 @@ package builder
 
 import (
 	"errors"
-	"log"
+	//"log"
 	"mime/multipart"
 	"net/http"
 	"reflect"
@@ -40,6 +40,7 @@ func mapForm(formStruct interface{}, form map[string][]string, formfile map[stri
 	}
 
 	for i := 0; i < typ.NumField(); i++ {
+
 		rawField := typ.Field(i)
 		valField := val.Field(i)
 
@@ -49,27 +50,38 @@ func mapForm(formStruct interface{}, form map[string][]string, formfile map[stri
 			continue
 		}
 
-		field := GetField(rawField, valField)
+		field, ferr := GetField(rawField, valField)
+		if ferr != nil {
+			return ferr
+		}
 
 		if inputValue, exists := form[fieldName]; exists {
 			numElems := len(inputValue)
 			if val.Kind() == reflect.Slice && numElems > 0 {
 				return errors.New("Unsupported form type: slice")
 			} else {
-				log.Println("Set " + rawField.Name + ", field:" + fieldName + " = " + inputValue[0])
+				// log.Println("Set " + rawField.Name + ", field:" + fieldName + " = " + inputValue[0])
+				//
 				if err := field.SetValueFromString(inputValue[0]); err != nil {
 					return err
 				}
 			}
 			continue
-
-		}
-
-		// inputFile
-		if _, exists := formfile[fieldName]; exists {
+		} else if _, exists_file := formfile[fieldName]; exists_file {
 			return errors.New("Unsupported form type: file")
+		} else {
+			if field.Required {
+				return errors.New("No value for required field : " + rawField.Name)
+			}
 		}
 	}
 
 	return nil
+}
+
+func isPointer(obj interface{}) bool {
+	if reflect.TypeOf(obj).Kind() == reflect.Ptr {
+		return true
+	}
+	return false
 }

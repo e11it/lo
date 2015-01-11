@@ -81,6 +81,11 @@ var RValueT = []FormTests{
 		expected:    "2346",
 	},
 	{
+		description: "Float64",
+		payload:     &formField{ReflectValue: reflect.ValueOf((float64)(23.467))},
+		expected:    "23.47",
+	},
+	{
 		description: "Time.Duration",
 		payload:     &formField{ReflectValue: reflect.ValueOf((time.Duration(10) * time.Second))},
 		expected:    "10000000000",
@@ -99,7 +104,10 @@ func TestValueToString(t *testing.T) {
 func TestFiled(t *testing.T) {
 	for _, testCase := range FieldT {
 		testCase.payload.ValidateTypeSetCustoms(testCase.payload.Type)
-		actStr := testCase.payload.GetHTML()
+		actStr, err := testCase.payload.GetHTML()
+		if err != nil {
+			t.Error("Error get html:", err.Error())
+		}
 		if actStr != testCase.expected {
 			t.Errorf("Description <<%s>>.\nExpected: %s\nActual: %s", testCase.description, testCase.expected, actStr)
 		}

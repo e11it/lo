@@ -39,7 +39,7 @@ func main() {
 		if err := builder.FormRead(fd, request); err != nil {
 			log.Println("Error:", err.Error())
 		}
-		log.Println("Dump form:", fd)
+		builder.DumpForm(fd)
 	})
 
 	m.Run()
