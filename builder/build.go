@@ -60,7 +60,7 @@ func mapForm(formStruct interface{}, form map[string][]string, formfile map[stri
 			if val.Kind() == reflect.Slice && numElems > 0 {
 				return errors.New("Unsupported form type: slice")
 			} else {
-				// log.Println("Set " + rawField.Name + ", field:" + fieldName + " = " + inputValue[0])
+				//log.Println("Set " + rawField.Name + ", field:" + fieldName + " = " + inputValue[0])
 				//
 				if err := field.SetValueFromString(inputValue[0]); err != nil {
 					return err

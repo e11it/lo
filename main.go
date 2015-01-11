@@ -1,8 +1,9 @@
 package main
 
 import (
-	"g.e11it.ru/go/lo/builder"
-	"g.e11it.ru/go/lo/loForms"
+	"github.com/e11it/lo/builder"
+	"github.com/e11it/lo/loForms"
+
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
 	"html/template"
@@ -37,9 +38,10 @@ func main() {
 	m.Post("/", func(r render.Render, request *http.Request) {
 		fd := &loForms.MyForm{}
 		if err := builder.FormRead(fd, request); err != nil {
-			log.Println("Error:", err.Error())
+			log.Println(err.Error())
+		} else {
+			builder.DumpForm(fd)
 		}
-		builder.DumpForm(fd)
 	})
 
 	m.Run()

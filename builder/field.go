@@ -152,7 +152,10 @@ func (self *formField) SetValueFromString(val string) error {
 		}
 	}
 	// Assign input value
-	return setWithProperType(self.ReflectValue.Kind(), val, self.ReflectValue)
+	if err := setWithProperType(self.ReflectValue.Kind(), val, self.ReflectValue); err != nil {
+		return errors.New("Error on set value: '" + val + "' for field: '" + self.ReflectField.Name + "' [" + err.Error() + "]")
+	}
+	return nil
 }
 
 // Возвращает label для текущего элемента
@@ -239,7 +242,7 @@ func setWithProperType(valueKind reflect.Kind, val string, structField reflect.V
 		 */
 		intVal, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
-			return errors.New("TypeError: Value could not be parsed as integer")
+			return errors.New("TypeError: Value could not be parsed as integer.")
 		} else {
 			structField.SetInt(intVal)
 		}
